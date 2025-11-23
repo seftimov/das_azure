@@ -1,0 +1,2 @@
+historical/*.csv filter=lfs diff=lfs merge=lfs -text
+all_coins.csv filter=lfs diff=lfs merge=lfs -text
