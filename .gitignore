@@ -1,0 +1,7 @@
+# Ignore IDE files
+*.iml
+.idea/
+
+# Ignore Python cache
+__pycache__/
+*.py[cod]
