@@ -1,0 +1,204 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block content %}
+    <style>
+        body {
+            background: #13171c;
+            color: #dde1e9;
+            min-height: 100vh;
+            margin: 0;
+        }
+
+        .dashboard-center-panel {
+            background: #1c2129;
+            margin: 64px auto 0 auto;
+            box-shadow: 0 6px 28px 0 #10101049;
+            width: 460px;
+            max-width: 98vw;
+            padding: 48px 38px 32px 38px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        .search-row {
+            width: 100%;
+            display: flex;
+            gap: 14px;
+            margin-bottom: 45px;
+        }
+
+        .search-row input {
+            background: #3d4859 !important;
+            border: none;
+            color: #c6cfdc !important;
+            flex: 1;
+            font-size: 0.9rem;
+            font-weight: 400;
+            padding: 10px 16px;
+            border-radius: 0px;
+            height: 40px;
+            box-shadow: none;
+        }
+
+        .search-row input:focus {
+            outline: none;
+            box-shadow: 0 0 0 2px #5e87c8;
+            background: #384254 !important;
+        }
+
+        .search-row input::placeholder {
+            color: #c6cfdc;
+            opacity: 1;
+        }
+
+        .submit-btn {
+            background: #3d4859;
+            color: #c6cfdc;
+            border: none;
+            font-weight: 200;
+            padding: 8px 19px;
+            height: 40px;
+            font-size: 0.9rem;
+            letter-spacing: 0.02rem;
+        }
+
+        .submit-btn:hover {
+            background: #527ff2;
+            color: #fff;
+        }
+
+        .table-container {
+            width: 100%;
+            overflow-y: auto;
+            max-height: 320px;
+            padding-right: 5px;
+        }
+
+        table {
+            color: #dde1e9;
+            width: 100%;
+            font-size: 0.9rem;
+            border-collapse: separate;
+            border-spacing: 0;
+        }
+
+        thead tr {
+            border-bottom: 1px solid #323645;
+        }
+
+        th {
+            font-weight: 400;
+            color: #929daa;
+            padding: 10px;
+            background: transparent !important;
+            text-align: center;
+        }
+
+
+        td, th {
+            padding: 10px;
+            background: transparent !important;
+            text-align: center;
+        }
+
+        th:nth-child(1) {
+            color: #8093ad;
+        }
+
+        th:nth-child(2) {
+            color: #8093ad;
+        }
+
+        th:nth-child(3) {
+            color: #8093ad;
+        }
+
+        tbody tr {
+            border-bottom: 1px solid #3f4a5c;
+            transition: background 0.25s;
+        }
+
+        tbody tr:hover {
+            background: #283040 !important;
+        }
+
+        td a {
+            color: #ffffff;
+            text-decoration: underline;
+        }
+
+        td a:hover {
+            color: #97b8f5;
+        }
+
+        td:first-child {
+            color: #ffffff;
+            font-weight: 400;
+            width: 33px;
+        }
+
+        td:nth-child(2) {
+            color: #ffffff;
+        }
+
+        td:first-child, th:first-child {
+            padding-right: 45px;
+        }
+
+        tbody tr:last-child td {
+            border-bottom: none !important;
+        }
+
+        .table-container::-webkit-scrollbar {
+            width: 8px;
+            background: #232934;
+        }
+
+        .table-container::-webkit-scrollbar-thumb {
+            background: #384254;
+            min-height: 35px;
+        }
+
+        .table-container::-webkit-scrollbar-corner {
+            background-color: #1c2129;
+        }
+
+        .table-container {
+            scrollbar-color: #384254 #1c2129;
+        }
+    </style>
+
+    <div class="dashboard-center-panel">
+        <form class="search-row" action="{% url 'home' %}" method="GET">
+            <input class="form-control" type="search" name="searched" value="{{ query }}" placeholder="Search coins...">
+            <button class="submit-btn" type="submit">SUBMIT</button>
+        </form>
+
+        <div class="table-container">
+            <table class="table mb-0">
+                <thead>
+                <tr>
+                    <th>#</th>
+                    <th>Symbol</th>
+                    <th>Name</th>
+                </tr>
+                </thead>
+                <tbody>
+                {% for coin in coins %}
+                    <tr>
+                        <td>{{ forloop.counter }}</td>
+                        <td>{{ coin.symbol }}</td>
+                        <td><a href="{% url 'coin_detail' coin.symbol %}">{{ coin.name }}</a></td>
+                    </tr>
+                {% empty %}
+                    <tr>
+                        <td colspan="3">No coins found.</td>
+                    </tr>
+                {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+{% endblock %}
