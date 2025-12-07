@@ -1,4 +1,5 @@
 import json
+import pandas as pd
 from datetime import date
 from django.contrib.auth.models import User
 from django.shortcuts import render, redirect, get_object_or_404
@@ -6,6 +7,7 @@ from .forms import SignupUserForm, CoinFilterForm
 from .models import Coins, OhlcvData
 from django.contrib.auth import authenticate, login, logout
 from django.contrib import messages
+from .technical_analysis import calculate_indicators
 
 
 # Create your views here.
@@ -160,9 +162,105 @@ def coin_detail(request, symbol):
 
     return render(request, "coin_detail.html", context)
 
+
 # def coin_detail(request, symbol):
 #     symbol_obj = Coins.objects.get(symbol=symbol)
 #     ohlcv_data = OhlcvData.objects.filter(symbol=symbol)
 #     context = {'symbol_obj': symbol_obj,
 #                'ohlcv_data': ohlcv_data}
 #     return render(request, 'coin_detail.html', context)
+
+
+def technical_analysis_page(request):
+    symbols = Coins.objects.values_list("symbol", flat=True).order_by("market_cap_rank")
+
+    context = {"symbols": symbols}
+
+    if request.method == "POST":
+        symbol = request.POST.get("symbol")
+        timeframe = request.POST.get("timeframe")
+
+        ohlcv = OhlcvData.objects.filter(symbol=symbol).order_by("date")
+
+        df = pd.DataFrame(list(ohlcv.values("date", "open", "high", "low", "close", "volume")))
+
+        if df.empty:
+            context["error"] = "No data found for this symbol."
+            return render(request, "technical_analysis.html", context)
+
+        df["open"] = df["open"].astype(float)
+        df["high"] = df["high"].astype(float)
+        df["low"] = df["low"].astype(float)
+        df["close"] = df["close"].astype(float)
+        df["volume"] = df["volume"].astype(float)
+
+        df['date'] = pd.to_datetime(df['date'])
+
+        if timeframe == "1week":
+            df = df.resample("W", on="date").agg({
+                "open": "first",
+                "high": "max",
+                "low": "min",
+                "close": "last",
+                "volume": "sum"
+            }).reset_index()
+
+        elif timeframe == "1month":
+            df = df.resample("M", on="date").agg({
+                "open": "first",
+                "high": "max",
+                "low": "min",
+                "close": "last",
+                "volume": "sum"
+            }).reset_index()
+
+        df = calculate_indicators(df)
+
+        signals = []
+        scores = []
+
+        for i, row in df.iterrows():
+            score = 0
+
+            # RSI Momentum
+            if row["rsi"] < 35:
+                score += 1
+            elif row["rsi"] > 65:
+                score -= 1
+
+            # MACD Trend Direction
+            if row["macd"] > row["macd_signal"]:
+                score += 1
+            elif row["macd"] < row["macd_signal"]:
+                score -= 1
+
+            # Moving Average Trend
+            if row["close"] > row["ema_20"]:
+                score += 1
+            elif row["close"] < row["ema_20"]:
+                score -= 1
+
+            # ADX Trend Strength Filter
+            trending = row["adx"] > 20
+
+            # FINAL SIGNAL DECISION
+            if score >= 2 and trending:
+                signal = "BUY"
+            elif score <= -2 and trending:
+                signal = "SELL"
+            else:
+                signal = "HOLD"
+
+            signals.append(signal)
+            scores.append(score)
+
+        df["score"] = scores
+        df["signal"] = signals
+
+        context.update({
+            "selected_symbol": symbol,
+            "timeframe": timeframe,
+            "table": df.tail(40).to_html(classes="table table-striped", index=False)
+        })
+
+    return render(request, "technical_analysis.html", context)
