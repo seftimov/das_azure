@@ -1,0 +1,162 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}LSTM Prediction{% endblock %}
+
+{% block content %}
+    <style>
+        .custom-dark-table {
+            background-color: #1c2129 !important;
+            color: #dde1e9;
+            border-collapse: collapse;
+            width: 100%;
+            border-radius: 10px;
+            overflow: hidden;
+        }
+
+        .custom-dark-table th,
+        .custom-dark-table td {
+            background-color: #1c2129 !important;
+            color: #dde1e9;
+            border-color: #2b3443;
+            padding: 10px;
+            vertical-align: middle;
+            text-align: center;
+        }
+
+        .custom-dark-table thead th {
+            background-color: #232833 !important;
+            color: #97b8f5;
+            border-bottom: 2px solid #2b3443;
+        }
+
+        .custom-dark-table tbody tr:hover {
+            background-color: #2b3443 !important;
+            transition: background-color 0.2s ease-in-out;
+        }
+    </style>
+
+    <h2 class="mb-3 text-light">LSTM Future Price Prediction</h2>
+
+    <form method="POST" class="card p-3 bg-dark text-light">
+        {% csrf_token %}
+
+        <!-- SYMBOL -->
+        <label class="form-label">Symbol</label>
+        <select name="symbol" class="form-select mb-3">
+            {% for s in symbols %}
+                <option value="{{ s }}" {% if s == selected_symbol %}selected{% endif %}>
+                    {{ s }}
+                </option>
+            {% endfor %}
+        </select>
+
+        <!-- TIME AGGREGATION -->
+        <label class="form-label">Granularity</label>
+        <select name="granularity" class="form-select mb-3">
+            <option value="daily" {% if granularity == "daily" %}selected{% endif %}>Daily</option>
+            <option value="weekly" {% if granularity == "weekly" %}selected{% endif %}>Weekly</option>
+            <option value="monthly" {% if granularity == "monthly" %}selected{% endif %}>Monthly</option>
+        </select>
+
+        <div class="row">
+            <!-- LOOKBACK -->
+            <div class="col">
+                <label class="form-label">Lookback</label>
+                <input type="number" class="form-control"
+                       name="lookback" value="{{ lookback|default:30 }}">
+            </div>
+
+            <!-- EPOCHS -->
+            <div class="col">
+                <label class="form-label">Epochs</label>
+                <input type="number" class="form-control"
+                       name="epochs" value="{{ epochs|default:20 }}">
+            </div>
+        </div>
+
+        <!-- FUTURE HORIZON -->
+        <label class="form-label mt-3">Forecast Horizon</label>
+        <input type="number" class="form-control mb-3"
+               name="horizon" value="{{ horizon|default:7 }}">
+
+        <button class="btn btn-primary w-100">Train & Predict</button>
+    </form>
+
+    <hr class="border-secondary">
+
+    {% if error %}
+        <div class="alert alert-danger mt-3">{{ error }}</div>
+    {% endif %}
+
+    {% if chart_data %}
+
+        <h4 class="text-light mt-4">{{ selected_symbol }} – Forecast Chart</h4>
+
+        <!-- CHART -->
+        <div id="chart" class="rounded mt-2" style="height:450px;"></div>
+
+        <script src="https://unpkg.com/lightweight-charts@4.0.0/dist/lightweight-charts.standalone.production.js"></script>
+
+        <script>
+            const chartData = JSON.parse('{{ chart_data|escapejs }}');
+
+            const chart = LightweightCharts.createChart(document.getElementById("chart"), {
+                width: document.getElementById("chart").clientWidth,
+                height: 450,
+                layout: {
+                    textColor: '#dde1e9',
+                    background: {type: 'solid', color: '#181d23'},
+                },
+                grid: {
+                    vertLines: {color: '#2b3443'},
+                    horzLines: {color: '#2b3443'},
+                }
+            });
+
+            const actualSeries = chart.addLineSeries({color: "cyan", lineWidth: 2});
+            const predSeries = chart.addLineSeries({color: "orange", lineWidth: 2});
+
+            actualSeries.setData(
+                chartData.filter(r => r.actual !== null)
+                    .map(r => ({time: r.time, value: r.actual}))
+            );
+
+            predSeries.setData(
+                chartData.map(r => ({time: r.time, value: r.predicted}))
+            );
+        </script>
+
+        <!-- METRICS -->
+        <h4 class="text-light mt-4">Model Performance</h4>
+        <ul class="text-light">
+            <li><strong>RMSE:</strong> {{ metrics.rmse|floatformat:4 }}</li>
+            <li><strong>MAPE:</strong> {{ metrics.mape|floatformat:4 }}</li>
+            <li><strong>R²:</strong> {{ metrics.r2|floatformat:4 }}</li>
+        </ul>
+
+        <!-- FUTURE TABLE -->
+        <h4 class="text-light mt-4">Future Price Forecast</h4>
+
+        <div class="table-responsive">
+            <table class="table custom-dark-table mt-3">
+                <thead>
+                <tr>
+                    <th>Date</th>
+                    <th>Predicted Price</th>
+                </tr>
+                </thead>
+                <tbody>
+                {% for d, p in future_rows %}
+                    <tr>
+                        <td>{{ d }}</td>
+                        <td>{{ p|floatformat:4 }}</td>
+                    </tr>
+                {% endfor %}
+                </tbody>
+            </table>
+        </div>
+
+    {% endif %}
+
+{% endblock %}

@@ -8,6 +8,7 @@ from .models import Coins, OhlcvData
 from django.contrib.auth import authenticate, login, logout
 from django.contrib import messages
 from .technical_analysis import calculate_indicators
+from .lstm import train_and_predict, forecast_future
 
 
 # Create your views here.
@@ -264,3 +265,99 @@ def technical_analysis_page(request):
         })
 
     return render(request, "technical_analysis.html", context)
+
+
+def lstm_page(request):
+    symbols = Coins.objects.values_list("symbol", flat=True).order_by("market_cap_rank")
+    context = {"symbols": symbols}
+
+    if request.method == "POST":
+        symbol = request.POST.get("symbol")
+        lookback = int(request.POST.get("lookback", 30))
+        epochs = int(request.POST.get("epochs", 20))
+        horizon = int(request.POST.get("horizon", 7))
+        granularity = request.POST.get("granularity", "daily")
+
+        ohlcv = OhlcvData.objects.filter(symbol=symbol).order_by("date")
+        df = pd.DataFrame(list(ohlcv.values("date", "open", "high", "low", "close", "volume")))
+
+        if df.empty or len(df) < (lookback + 20):
+            context["error"] = "Not enough data for LSTM."
+            return render(request, "lstm.html", context)
+
+        df[["open", "high", "low", "close", "volume"]] = df[
+            ["open", "high", "low", "close", "volume"]
+        ].astype(float)
+        df["date"] = pd.to_datetime(df["date"])
+
+        # RESAMPLING
+        if granularity == "weekly":
+            df = df.resample("W", on="date").agg({
+                "open": "first",
+                "high": "max",
+                "low": "min",
+                "close": "last",
+                "volume": "sum"
+            }).reset_index()
+            freq = "W"
+        elif granularity == "monthly":
+            df = df.resample("M", on="date").agg({
+                "open": "first",
+                "high": "max",
+                "low": "min",
+                "close": "last",
+                "volume": "sum"
+            }).reset_index()
+            freq = "M"
+        else:
+            freq = "D"
+
+        results = train_and_predict(df, lookback=lookback, epochs=epochs)
+        model = results["model"]
+        scaler = results["scaler"]
+
+        future_dates, future_preds = forecast_future(
+            model, df, scaler, lookback, horizon, freq=freq
+        )
+
+        test_dates = results["test_dates"]
+        y_test = results["y_test"]
+        y_pred = results["y_pred"]
+        metrics = results["metrics"]
+
+        chart_data = []
+
+        # Historical predicted vs actual
+        for date, actual, pred in zip(test_dates, y_test, y_pred):
+            chart_data.append({
+                "time": date if isinstance(date, str) else date.strftime("%Y-%m-%d"),
+                "actual": float(actual),
+                "predicted": float(pred)
+            })
+
+        # Future predictions
+        for date, pred in zip(future_dates, future_preds):
+            chart_data.append({
+                "time": date if isinstance(date, str) else date.strftime("%Y-%m-%d"),
+                "actual": None,
+                "predicted": float(pred)
+            })
+
+        context.update({
+            "selected_symbol": symbol,
+            "metrics": metrics,
+            "chart_data": json.dumps(chart_data),
+            "future_rows": [
+                (
+                    d if isinstance(d, str) else d.strftime("%Y-%m-%d"),
+                    float(p)
+                )
+                for d, p in zip(future_dates, future_preds)
+            ],
+            "lookback": lookback,
+            "epochs": epochs,
+            "horizon": horizon,
+            "granularity": granularity
+        })
+
+    return render(request, "lstm.html", context)

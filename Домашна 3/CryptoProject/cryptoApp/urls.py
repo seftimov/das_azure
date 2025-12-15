@@ -9,4 +9,5 @@ urlpatterns = [
     path('signup_user/', views.signup_user, name='signup'),
     path('coin/<str:symbol>/', views.coin_detail, name='coin_detail'),
     path("technical-analysis/", views.technical_analysis_page, name="technical_analysis_page"),
+    path("lstm/", views.lstm_page, name="lstm_page"),
 ]
