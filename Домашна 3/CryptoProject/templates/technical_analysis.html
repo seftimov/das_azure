@@ -1,32 +1,73 @@
-<h2>Technical Analysis</h2>
+{% extends "base.html" %}
 
-<form method="POST">
-    {% csrf_token %}
+{% block title %}Technical Analysis{% endblock %}
 
-    <label>Select symbol:</label>
-    <select name="symbol" class="form-select">
-        {% for s in symbols %}
-            <option value="{{ s }}" {% if s == selected_symbol %}selected{% endif %}>{{ s }}</option>
-        {% endfor %}
-    </select>
+{% block content %}
+    <style>
+        /* Dark table like On-chain & Sentiment page */
+        .ta-table-wrapper table {
+            background-color: #1c2129 !important;
+            color: #dde1e9;
+            border-collapse: collapse;
+            width: 100%;
+            border-radius: 10px;
+            overflow: hidden;
+        }
 
-    <label class="mt-3">Select timeframe:</label>
-    <select name="timeframe" class="form-select">
-        <option value="1day" {% if timeframe == '1day' %}selected{% endif %}>1 Day</option>
-        <option value="1week" {% if timeframe == '1week' %}selected{% endif %}>1 Week</option>
-        <option value="1month" {% if timeframe == '1month' %}selected{% endif %}>1 Month</option>
-    </select>
+        .ta-table-wrapper table th,
+        .ta-table-wrapper table td {
+            background-color: #1c2129 !important;
+            color: #dde1e9;
+            border-color: #2b3443;
+            padding: 10px;
+            vertical-align: middle;
+            text-align: center;
+        }
 
-    <button class="btn btn-primary mt-3" type="submit">Analyze</button>
-</form>
+        .ta-table-wrapper table thead th {
+            background-color: #232833 !important;
+            color: #97b8f5;
+            border-bottom: 2px solid #2b3443;
+        }
 
-<hr>
+        .ta-table-wrapper table tbody tr:hover {
+            background-color: #2b3443 !important;
+            transition: background-color 0.2s ease-in-out;
+        }
+    </style>
 
-{% if error %}
-    <p class="text-danger">{{ error }}</p>
-{% endif %}
+    <h2 class="mb-3 text-light">Technical Analysis</h2>
 
-{% if table %}
-    <h3>Results for {{ selected_symbol }} ({{ timeframe }})</h3>
-    {{ table|safe }}
-{% endif %}
+    <form method="POST" class="card p-3 bg-dark text-light mb-3">
+        {% csrf_token %}
+
+        <label class="form-label">Select symbol</label>
+        <select name="symbol" class="form-select mb-3">
+            {% for s in symbols %}
+                <option value="{{ s }}" {% if s == selected_symbol %}selected{% endif %}>{{ s }}</option>
+            {% endfor %}
+        </select>
+
+        <label class="form-label">Select timeframe</label>
+        <select name="timeframe" class="form-select mb-3">
+            <option value="1day" {% if timeframe == '1day' %}selected{% endif %}>1 Day</option>
+            <option value="1week" {% if timeframe == '1week' %}selected{% endif %}>1 Week</option>
+            <option value="1month" {% if timeframe == '1month' %}selected{% endif %}>1 Month</option>
+        </select>
+
+        <button class="btn btn-primary w-100 mt-2" type="submit">Analyze</button>
+    </form>
+
+    <hr class="border-secondary">
+
+    {% if error %}
+        <p class="text-danger">{{ error }}</p>
+    {% endif %}
+
+    {% if table %}
+        <h3 class="text-light">Results for {{ selected_symbol }} ({{ timeframe }})</h3>
+        <div class="table-responsive ta-table-wrapper mt-3">
+            {{ table|safe }}
+        </div>
+    {% endif %}
+{% endblock %}
