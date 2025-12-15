@@ -1,3 +1,4 @@
 all_coins.csv filter=lfs diff=lfs merge=lfs -text
 *.csv filter=lfs diff=lfs merge=lfs -text
 Домашна[[:space:]]3/CryptoProject/cryptoApp/data/onchain_with_sentiment.csv filter=lfs diff=lfs merge=lfs -text
+Домашна[[:space:]]3/On-chainAndSentimentAnalysis/*.csv filter=lfs diff=lfs merge=lfs -text
