@@ -1,0 +1,124 @@
+{% extends "base.html" %}
+{% load dict_extras %}
+
+{% block title %}On-chain & Sentiment{% endblock %}
+
+{% block content %}
+    <style>
+        .custom-dark-table {
+            background-color: #1c2129 !important;
+            color: #dde1e9;
+            border-collapse: collapse;
+            width: 100%;
+            border-radius: 10px;
+            overflow: hidden;
+        }
+
+        .custom-dark-table th,
+        .custom-dark-table td {
+            background-color: #1c2129 !important;
+            color: #dde1e9;
+            border-color: #2b3443;
+            padding: 10px;
+            vertical-align: middle;
+            text-align: center;
+        }
+
+        .custom-dark-table thead th {
+            background-color: #232833 !important;
+            color: #97b8f5;
+            border-bottom: 2px solid #2b3443;
+        }
+
+        .custom-dark-table tbody tr:hover {
+            background-color: #2b3443 !important;
+            transition: background-color 0.2s ease-in-out;
+        }
+
+        .form-control,
+        .form-select {
+            background-color: #fff;
+            color: #000;
+        }
+
+        .bg-dark .form-control,
+        .bg-dark .form-select {
+            background-color: #ffffff;
+            color: #000000;
+        }
+    </style>
+
+    <h2 class="mb-3 text-light">On-chain & Sentiment Data</h2>
+
+    <form method="post" class="card p-3 bg-dark text-light">
+        {% csrf_token %}
+
+        <div class="row g-3">
+            <div class="col-md-3">
+                <label class="form-label">Coin</label>
+                {{ form.symbol|add_class:"form-select mb-3" }}
+            </div>
+
+            <div class="col-md-3">
+                <label class="form-label">Start date</label>
+                {{ form.start_date|add_class:"form-control mb-3" }}
+            </div>
+
+            <div class="col-md-3">
+                <label class="form-label">End date</label>
+                {{ form.end_date|add_class:"form-control mb-3" }}
+            </div>
+
+            <div class="col-md-2 d-flex align-items-end">
+                <div class="form-check">
+                    {{ form.only_with_news }}
+                    <label class="form-check-label" for="{{ form.only_with_news.id_for_label }}">
+                        {{ form.only_with_news.label }}
+                    </label>
+                </div>
+            </div>
+
+            <div class="col-md-1 d-flex align-items-end">
+                <button type="submit" class="btn btn-primary w-100">
+                    Filter
+                </button>
+            </div>
+        </div>
+    </form>
+
+    <hr class="border-secondary">
+
+    {% if selected_symbol %}
+        <p class="text-light">
+            Showing data for: <strong>{{ selected_symbol }}</strong>
+        </p>
+    {% endif %}
+
+    {% if rows %}
+        <div class="table-responsive">
+            <table class="table custom-dark-table mt-3">
+                <thead>
+                <tr>
+                    {% for col in columns %}
+                        <th>{{ col }}</th>
+                    {% endfor %}
+                </tr>
+                </thead>
+                <tbody>
+                {% for row in rows %}
+                    <tr>
+                        {% for col in columns %}
+                            <td>{{ row|get_item:col }}</td>
+                        {% endfor %}
+                    </tr>
+                {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    {% elif rows is not None %}
+        <div class="alert alert-secondary mt-3">
+            No data for this filter.
+        </div>
+    {% endif %}
+
+{% endblock %}

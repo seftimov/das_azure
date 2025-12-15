@@ -1,9 +1,10 @@
 import json
 import pandas as pd
 from datetime import date
+from pathlib import Path
 from django.contrib.auth.models import User
 from django.shortcuts import render, redirect, get_object_or_404
-from .forms import SignupUserForm, CoinFilterForm
+from .forms import SignupUserForm, CoinFilterForm, OnchainSentimentForm
 from .models import Coins, OhlcvData
 from django.contrib.auth import authenticate, login, logout
 from django.contrib import messages
@@ -361,3 +362,76 @@ def lstm_page(request):
         })
 
     return render(request, "lstm.html", context)
+
+
+def onchain_sentiment_page(request):
+    csv_path = Path(__file__).resolve().parent / "data" / "onchain_with_sentiment.csv"
+
+    df = pd.read_csv(csv_path)
+    df["time"] = pd.to_datetime(df["time"])
+    df["symbol"] = df["symbol"].str.upper()
+
+    # Sentiment label
+    if "sentiment_score" in df.columns:
+        def label_sentiment(x):
+            if pd.isna(x):
+                return "no news"
+            if x > 0.05:
+                return "positive"
+            if x < -0.05:
+                return "negative"
+            return "neutral"
+
+        df["sentiment_label"] = df["sentiment_score"].apply(label_sentiment)
+
+    db_symbols = list(
+        Coins.objects.order_by("market_cap_rank")
+        .values_list("symbol", flat=True)
+    )
+    db_symbols_upper = [s.upper() for s in db_symbols]
+    csv_symbols = set(df["symbol"].dropna().unique())
+    symbols_ordered = [s for s in db_symbols_upper if s in csv_symbols]
+    symbol_choices = [(s, s) for s in symbols_ordered]
+
+    filtered_df = df.copy()
+    selected_symbol = None
+    rows = None
+    columns = list(df.columns)
+
+    if request.method == "POST":
+        form = OnchainSentimentForm(request.POST)
+        form.fields["symbol"].choices = symbol_choices
+
+        if form.is_valid():
+            selected_symbol = form.cleaned_data["symbol"]
+            start_date = form.cleaned_data.get("start_date")
+            end_date = form.cleaned_data.get("end_date")
+            only_with_news = form.cleaned_data.get("only_with_news")
+
+            filtered_df = filtered_df[filtered_df["symbol"] == selected_symbol]
+
+            if start_date:
+                filtered_df = filtered_df[filtered_df["time"] >= pd.to_datetime(start_date)]
+            if end_date:
+                filtered_df = filtered_df[filtered_df["time"] <= pd.to_datetime(end_date)]
+
+            if only_with_news and "sentiment_score" in filtered_df.columns:
+                filtered_df = filtered_df[filtered_df["sentiment_score"].notnull()]
+
+            if not filtered_df.empty:
+                filtered_df = filtered_df.sort_values("time", ascending=True)
+                rows = filtered_df.to_dict(orient="records")
+                columns = list(filtered_df.columns)
+            else:
+                rows = []
+    else:
+        form = OnchainSentimentForm()
+        form.fields["symbol"].choices = symbol_choices
+
+    context = {
+        "form": form,
+        "columns": columns,
+        "rows": rows,
+        "selected_symbol": selected_symbol,
+    }
+    return render(request, "onchain_sentiment.html", context)

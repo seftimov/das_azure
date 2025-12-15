@@ -52,3 +52,40 @@ class CoinFilterForm(forms.Form):
         initial='USD',
         widget=forms.Select(attrs={'class': 'form-select'})
     )
+
+
+class OnchainSentimentForm(forms.Form):
+    symbol = forms.ChoiceField(
+        label="Coin",
+        required=True,
+        widget=forms.Select(attrs={
+            "class": "form-select"
+        })
+    )
+
+    start_date = forms.DateField(
+        label="Start date",
+        required=False,
+        widget=forms.DateInput(attrs={
+            "type": "date",
+            "class": "form-control"
+        })
+    )
+
+    end_date = forms.DateField(
+        label="End date",
+        required=False,
+        widget=forms.DateInput(attrs={
+            "type": "date",
+            "class": "form-control"
+        })
+    )
+
+    only_with_news = forms.BooleanField(
+        label="Show only rows with news",
+        required=False,
+        initial=False,
+        widget=forms.CheckboxInput(attrs={
+            "class": "form-check-input"
+        })
+    )
