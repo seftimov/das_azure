@@ -218,51 +218,127 @@ def technical_analysis_page(request):
 
         df = calculate_indicators(df)
 
+        df_complete = df.dropna(subset=[
+            "open", "high", "low", "close",
+            "ema_20", "sma_20", "wma_20",
+            "bb_upper", "bb_lower", "vwap",
+            "rsi", "stoch", "macd", "macd_signal", "adx", "cci"
+        ]).reset_index(drop=True)
+
+        if len(df_complete) < 5:
+            context.update({
+                "selected_symbol": symbol,
+                "timeframe": timeframe,
+                "table": df.tail(40).to_html(classes="table table-striped", index=False),
+                "error": f"Not enough {timeframe} data to plot indicators (need 5+, got {len(df_complete)}).",
+            })
+            return render(request, "technical_analysis.html", context)
+
         signals = []
         scores = []
-
-        for i, row in df.iterrows():
+        for i, row in df_complete.iterrows():
             score = 0
-
-            # RSI Momentum
             if row["rsi"] < 35:
                 score += 1
             elif row["rsi"] > 65:
                 score -= 1
-
-            # MACD Trend Direction
             if row["macd"] > row["macd_signal"]:
                 score += 1
             elif row["macd"] < row["macd_signal"]:
                 score -= 1
-
-            # Moving Average Trend
             if row["close"] > row["ema_20"]:
                 score += 1
             elif row["close"] < row["ema_20"]:
                 score -= 1
-
-            # ADX Trend Strength Filter
             trending = row["adx"] > 20
 
-            # FINAL SIGNAL DECISION
-            if score >= 2 and trending:
-                signal = "BUY"
-            elif score <= -2 and trending:
-                signal = "SELL"
-            else:
-                signal = "HOLD"
-
+            signal = "BUY" if (score >= 2 and trending) else "SELL" if (score <= -2 and trending) else "HOLD"
             signals.append(signal)
             scores.append(score)
 
-        df["score"] = scores
-        df["signal"] = signals
+        df_complete["score"] = scores
+        df_complete["signal"] = signals
+
+        df_chart = df_complete.tail(300)
+
+        candlestick_data = []
+        markers_data = []
+        ema20_data = []
+        sma20_data = []
+        wma20_data = []
+        rsi_data = []
+        macd_data = []
+        macd_signal_data = []
+        stoch_data = []
+        adx_data = []
+        cci_data = []
+        bb_upper_data = []
+        bb_lower_data = []
+        vwap_data = []
+
+        for _, row in df_chart.iterrows():
+            t = row["date"].strftime("%Y-%m-%d")
+
+            candlestick_data.append({
+                "time": t,
+                "open": row["open"],
+                "high": row["high"],
+                "low": row["low"],
+                "close": row["close"],
+            })
+
+            if row["signal"] == "BUY":
+                markers_data.append({
+                    "time": t,
+                    "position": "belowBar",
+                    "color": "#26a69a",
+                    "shape": "arrowUp",
+                    "text": "BUY",
+                })
+            elif row["signal"] == "SELL":
+                markers_data.append({
+                    "time": t,
+                    "position": "aboveBar",
+                    "color": "#ef5350",
+                    "shape": "arrowDown",
+                    "text": "SELL",
+                })
+
+            ema20_data.append({"time": t, "value": row["ema_20"]})
+            sma20_data.append({"time": t, "value": row["sma_20"]})
+            wma20_data.append({"time": t, "value": row["wma_20"]})
+            vwap_data.append({"time": t, "value": row["vwap"]})
+            bb_upper_data.append({"time": t, "value": row["bb_upper"]})
+            bb_lower_data.append({"time": t, "value": row["bb_lower"]})
+
+            rsi_data.append({"time": t, "value": row["rsi"]})
+            stoch_data.append({"time": t, "value": row["stoch"]})
+            macd_data.append({"time": t, "value": row["macd"]})
+            macd_signal_data.append({"time": t, "value": row["macd_signal"]})
+            adx_data.append({"time": t, "value": row["adx"]})
+            cci_data.append({"time": t, "value": row["cci"]})
 
         context.update({
             "selected_symbol": symbol,
             "timeframe": timeframe,
-            "table": df.tail(40).to_html(classes="table table-striped", index=False)
+            "table": df_complete[
+                ['date', 'rsi', 'macd', 'macd_signal', 'stoch', 'adx', 'cci', 'sma_20', 'ema_20', 'wma_20', 'bb_mid',
+                 'bb_upper', 'bb_lower', 'vwap', 'score', 'signal']].tail(40).to_html(classes="table table-striped",
+                                                                                      index=False),
+            "candlestick_data": json.dumps(candlestick_data),
+            "markers_data": json.dumps(markers_data),
+            "ema20_data": json.dumps(ema20_data),
+            "sma20_data": json.dumps(sma20_data),
+            "wma20_data": json.dumps(wma20_data),
+            "vwap_data": json.dumps(vwap_data),
+            "bb_upper_data": json.dumps(bb_upper_data),
+            "bb_lower_data": json.dumps(bb_lower_data),
+            "rsi_data": json.dumps(rsi_data),
+            "stoch_data": json.dumps(stoch_data),
+            "macd_data": json.dumps(macd_data),
+            "macd_signal_data": json.dumps(macd_signal_data),
+            "adx_data": json.dumps(adx_data),
+            "cci_data": json.dumps(cci_data),
         })
 
     return render(request, "technical_analysis.html", context)
