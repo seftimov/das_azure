@@ -1,0 +1,198 @@
+{% extends 'base.html' %}
+{% load static %}
+{% block title %}{{ symbol_obj.name }} Details{% endblock %}
+
+{% block content %}
+    <style>
+        /* === Custom Dark Theme === */
+        body {
+            background-color: #13171c;
+            color: #dde1e9;
+        }
+
+        /* Table styling */
+        .custom-dark-table {
+            background-color: #1c2129 !important;
+            color: #dde1e9;
+            border-collapse: collapse;
+            width: 100%;
+            border-radius: 10px;
+            overflow: hidden;
+        }
+
+        .custom-dark-table th,
+        .custom-dark-table td {
+            background-color: #1c2129 !important;
+            color: #dde1e9;
+            border-color: #2b3443;
+            padding: 10px;
+            vertical-align: middle;
+            text-align: center;
+        }
+
+        .custom-dark-table thead th {
+            background-color: #232833 !important;
+            color: #97b8f5;
+            border-bottom: 2px solid #2b3443;
+        }
+
+        .custom-dark-table tbody tr:hover {
+            background-color: #2b3443 !important;
+            transition: background-color 0.2s ease-in-out;
+        }
+
+        /* === Form Inputs (date, select) === */
+        input[type="date"],
+        select {
+            background-color: #1c2129 !important;
+            color: #dde1e9 !important;
+            border: 1px solid #2b3443 !important;
+            border-radius: 5px;
+            padding: 8px;
+            width: 100%;
+        }
+
+        input[type="date"]::-webkit-calendar-picker-indicator {
+            filter: invert(1);
+        }
+
+        input[type="date"]:focus,
+        select:focus {
+            border-color: #5e87c8 !important;
+            box-shadow: 0 0 5px #5e87c8;
+            outline: none;
+        }
+
+        /* Buttons */
+        .btn-primary {
+            background-color: #3a6ee8;
+            border: none;
+        }
+
+        .btn-primary:hover {
+            background-color: #527ff2;
+        }
+
+        .btn-secondary {
+            background-color: #2b3443;
+            border: none;
+        }
+
+        .btn-secondary:hover {
+            background-color: #3a455a;
+        }
+    </style>
+
+    <div class="container mt-5">
+
+        <!-- Header -->
+        <h1 class="text-center mb-3">{{ symbol_obj.name }} ({{ symbol_obj.symbol }})</h1>
+        {% if symbol_obj.market_cap_rank %}
+            <p class="text-center">Market Cap Rank: {{ symbol_obj.market_cap_rank }}</p>
+        {% endif %}
+        {% if symbol_obj.current_price %}
+            <p class="text-center">Current Price: ${{ symbol_obj.current_price|floatformat:2 }}</p>
+        {% endif %}
+
+        <br>
+
+        <!-- Chart -->
+        <div id="tvchart" style="width: 100%; height: 600px;"></div>
+        <br>
+
+        <!-- Lightweight Charts -->
+        <script src="https://unpkg.com/lightweight-charts@4.2.0/dist/lightweight-charts.standalone.production.js"></script>
+        <script>
+            window.addEventListener("DOMContentLoaded", function () {
+                const candlestickData = JSON.parse('{{ candlestick_data|escapejs }}');
+                const chartContainer = document.getElementById('tvchart');
+
+                const chart = LightweightCharts.createChart(chartContainer, {
+                    width: chartContainer.clientWidth,
+                    height: 600,
+                    layout: {
+                        textColor: '#dde1e9',
+                        background: {type: 'solid', color: '#181d23'},
+                    },
+                    grid: {
+                        vertLines: {color: '#2b3443'},
+                        horzLines: {color: '#2b3443'},
+                    },
+                    timeScale: {borderColor: '#2b3443'},
+                });
+
+                const candlestickSeries = chart.addCandlestickSeries({
+                    upColor: '#26a69a',
+                    downColor: '#ef5350',
+                    borderVisible: false,
+                    wickUpColor: '#26a69a',
+                    wickDownColor: '#ef5350',
+                });
+
+                candlestickSeries.setData(candlestickData);
+                chart.timeScale().fitContent();
+
+                window.addEventListener('resize', () => {
+                    chart.applyOptions({width: chartContainer.clientWidth});
+                });
+            });
+        </script>
+
+        <!-- Filter Form -->
+        <form class="mb-3 mt-4" action="{% url 'coin_detail' symbol=symbol_obj.symbol %}" method="POST">
+            {% csrf_token %}
+            <div class="row g-3 align-items-end">
+                <div class="col-md-2">
+                    {{ form.start_date }}
+                </div>
+                <div class="col-md-2">
+                    {{ form.end_date }}
+                </div>
+                <div class="col-md-4"></div>
+                <div class="col-md-2">
+                    {{ form.currency }}
+                </div>
+                <div class="col-md-2">
+                    <button type="submit" class="btn btn-primary w-100">Submit</button>
+                </div>
+            </div>
+        </form>
+
+        <!-- OHLCV Table -->
+        <h3 class="mt-4">OHLCV Data</h3>
+        <table class="table custom-dark-table mt-3">
+            <thead>
+            <tr>
+                <th>Date</th>
+                <th>Open</th>
+                <th>High</th>
+                <th>Low</th>
+                <th>Close</th>
+                <th>Volume</th>
+            </tr>
+            </thead>
+            <tbody>
+            {% for data in ohlcv_data %}
+                <tr>
+                    <td>{{ data.date }}</td>
+                    <td>{{ data.open|default:"-" }}</td>
+                    <td>{{ data.high|default:"-" }}</td>
+                    <td>{{ data.low|default:"-" }}</td>
+                    <td>{{ data.close|default:"-" }}</td>
+                    <td>{{ data.volume|default:"-" }}</td>
+                </tr>
+            {% empty %}
+                <tr>
+                    <td colspan="6" class="text-center">No OHLCV data available.</td>
+                </tr>
+            {% endfor %}
+            </tbody>
+        </table>
+
+        <div class="text-center mt-4">
+            <a href="{% url 'home' %}" class="btn btn-secondary">Back to Coins List</a>
+        </div>
+
+        <br><br>
+    </div>
+{% endblock %}

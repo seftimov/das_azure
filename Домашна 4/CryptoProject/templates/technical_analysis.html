@@ -1,0 +1,305 @@
+{% extends "base.html" %}
+
+{% block title %}Technical Analysis{% endblock %}
+
+{% block content %}
+    <style>
+        .ta-table-wrapper table {
+            background-color: #1c2129 !important;
+            color: #dde1e9;
+            border-collapse: collapse;
+            width: 100%;
+            border-radius: 10px;
+            overflow: hidden;
+            font-size: 0.95rem;
+        }
+
+        .ta-table-wrapper table th,
+        .ta-table-wrapper table td {
+            background-color: #1c2129 !important;
+            color: #dde1e9;
+            border-color: #2b3443;
+            padding: 10px;
+            vertical-align: middle;
+            text-align: center;
+        }
+
+        .ta-table-wrapper table thead th {
+            background-color: #232833 !important;
+            color: #97b8f5;
+            border-bottom: 2px solid #2b3443;
+        }
+
+        .ta-table-wrapper table tbody tr:hover {
+            background-color: #2b3443 !important;
+            transition: background-color 0.2s ease-in-out;
+        }
+
+        .table-responsive {
+            overflow-x: auto;
+            scrollbar-width: none;
+            -ms-overflow-style: none;
+        }
+
+        .table-responsive::-webkit-scrollbar {
+            display: none;
+        }
+    </style>
+
+    <h2 class="mb-3 text-light">Technical Analysis</h2>
+
+    <form method="POST" class="card p-3 bg-dark text-light mb-3">
+        {% csrf_token %}
+
+        <label class="form-label">Symbol</label>
+        <select name="symbol" class="form-select mb-3">
+            {% for s in symbols %}
+                <option value="{{ s }}" {% if s == selected_symbol %}selected{% endif %}>
+                    {{ s }}
+                </option>
+            {% endfor %}
+        </select>
+
+        <label class="form-label">Timeframe</label>
+        <select name="timeframe" class="form-select mb-3">
+            <option value="1day" {% if timeframe == '1day' %}selected{% endif %}>1 Day</option>
+            <option value="1week" {% if timeframe == '1week' %}selected{% endif %}>1 Week</option>
+            <option value="1month" {% if timeframe == '1month' %}selected{% endif %}>1 Month</option>
+        </select>
+
+        <button class="btn btn-primary w-100">Analyze</button>
+    </form>
+
+    <hr class="border-secondary">
+
+    {% if error %}
+        <div class="alert alert-danger mt-3">{{ error }}</div>
+    {% endif %}
+
+    {% if candlestick_data %}
+
+        <h4 class="text-light mt-4">
+            {{ selected_symbol }} – Signals Chart ({{ timeframe }})
+        </h4>
+
+        <div class="mb-2 d-flex flex-wrap gap-2">
+            <button type="button" class="btn btn-sm btn-secondary" id="btn-ema">EMA20</button>
+            <button type="button" class="btn btn-sm btn-secondary" id="btn-sma">SMA20</button>
+            <button type="button" class="btn btn-sm btn-secondary" id="btn-wma">WMA20</button>
+            <button type="button" class="btn btn-sm btn-secondary" id="btn-bbands">Bollinger Bands</button>
+            <button type="button" class="btn btn-sm btn-secondary" id="btn-vwap">VWAP</button>
+            <button type="button" class="btn btn-sm btn-secondary" id="btn-rsi">RSI</button>
+            <button type="button" class="btn btn-sm btn-secondary" id="btn-stoch">Stoch</button>
+            <button type="button" class="btn btn-sm btn-secondary" id="btn-macd">MACD</button>
+            <button type="button" class="btn btn-sm btn-secondary" id="btn-adxcci">ADX & CCI</button>
+            <button type="button" class="btn btn-sm btn-secondary" id="btn-none">Clear all</button>
+        </div>
+
+        <div class="mt-2">
+            <div id="ta-chart" style="width: 100%; height: 400px;"></div>
+            <div id="indicators-chart"
+                 style="width: 100%; height: 250px; margin-top: 10px; display: none;"></div>
+        </div>
+
+        <script src="https://unpkg.com/lightweight-charts@4.2.0/dist/lightweight-charts.standalone.production.js"></script>
+        <script>
+            (function () {
+                const priceContainer = document.getElementById('ta-chart');
+                const indContainer = document.getElementById('indicators-chart');
+
+                const candlestickData = JSON.parse('{{ candlestick_data|escapejs }}');
+                const markersData = JSON.parse('{{ markers_data|escapejs }}');
+                const ema20Data = JSON.parse('{{ ema20_data|escapejs }}');
+                const sma20Data = JSON.parse('{{ sma20_data|escapejs }}');
+                const wma20Data = JSON.parse('{{ wma20_data|escapejs }}');
+                const vwapData = JSON.parse('{{ vwap_data|escapejs }}');
+                const bbUpperData = JSON.parse('{{ bb_upper_data|escapejs }}');
+                const bbLowerData = JSON.parse('{{ bb_lower_data|escapejs }}');
+                const rsiData = JSON.parse('{{ rsi_data|escapejs }}');
+                const stochData = JSON.parse('{{ stoch_data|escapejs }}');
+                const macdData = JSON.parse('{{ macd_data|escapejs }}');
+                const macdSignalData = JSON.parse('{{ macd_signal_data|escapejs }}');
+                const adxData = JSON.parse('{{ adx_data|escapejs }}');
+                const cciData = JSON.parse('{{ cci_data|escapejs }}');
+
+                const priceChart = LightweightCharts.createChart(priceContainer, {
+                    width: priceContainer.clientWidth,
+                    height: 400,
+                    layout: {
+                        textColor: '#dde1e9',
+                        background: {type: 'solid', color: '#181d23'}
+                    },
+                    grid: {
+                        vertLines: {color: '#2b3443'},
+                        horzLines: {color: '#2b3443'}
+                    },
+                    rightPriceScale: {borderColor: '#2b3443'},
+                    timeScale: {borderColor: '#2b3443'}
+                });
+
+                const candleSeries = priceChart.addCandlestickSeries({
+                    upColor: '#26a69a',
+                    downColor: '#ef5350',
+                    borderVisible: false,
+                    wickUpColor: '#26a69a',
+                    wickDownColor: '#ef5350'
+                });
+
+                candleSeries.setData(candlestickData);
+                candleSeries.setMarkers(markersData);
+
+                const emaSeries = priceChart.addLineSeries({color: '#ffeb3b', lineWidth: 2});
+                const smaSeries = priceChart.addLineSeries({color: '#00e676', lineWidth: 2});
+                const wmaSeries = priceChart.addLineSeries({color: '#ff9800', lineWidth: 2});
+                const vwapSeries = priceChart.addLineSeries({color: '#29b6f6', lineWidth: 2});
+                const bbUpperSeries = priceChart.addLineSeries({color: '#b0bec5', lineWidth: 1});
+                const bbLowerSeries = priceChart.addLineSeries({color: '#b0bec5', lineWidth: 1});
+
+                const indChart = LightweightCharts.createChart(indContainer, {
+                    width: indContainer.clientWidth,
+                    height: 250,
+                    layout: {
+                        textColor: '#dde1e9',
+                        background: {type: 'solid', color: '#181d23'}
+                    },
+                    grid: {
+                        vertLines: {color: '#2b3443'},
+                        horzLines: {color: '#2b3443'}
+                    },
+                    rightPriceScale: {borderColor: '#2b3443'},
+                    timeScale: {borderColor: '#2b3443'}
+                });
+
+                const rsiSeries = indChart.addLineSeries({color: '#42a5f5', lineWidth: 2});
+                const stochSeries = indChart.addLineSeries({color: '#ffeb3b', lineWidth: 2});
+                const macdSeries = indChart.addLineSeries({color: '#26a69a', lineWidth: 2});
+                const macdSignalSeries = indChart.addLineSeries({color: '#ef5350', lineWidth: 2});
+                const adxSeries = indChart.addLineSeries({color: '#ab47bc', lineWidth: 2});
+                const cciSeries = indChart.addLineSeries({color: '#ffa726', lineWidth: 2});
+
+                const showIndicators = () => {
+                    indContainer.style.display = 'block';
+                    indChart.applyOptions({width: indContainer.clientWidth});
+                    indChart.timeScale().fitContent();
+                };
+
+                document.getElementById('btn-ema').onclick = () => {
+                    smaSeries.setData([]);
+                    wmaSeries.setData([]);
+                    vwapSeries.setData([]);
+                    bbUpperSeries.setData([]);
+                    bbLowerSeries.setData([]);
+                    emaSeries.setData(ema20Data);
+                    priceChart.timeScale().fitContent();
+                };
+
+                document.getElementById('btn-sma').onclick = () => {
+                    emaSeries.setData([]);
+                    wmaSeries.setData([]);
+                    vwapSeries.setData([]);
+                    bbUpperSeries.setData([]);
+                    bbLowerSeries.setData([]);
+                    smaSeries.setData(sma20Data);
+                    priceChart.timeScale().fitContent();
+                };
+
+                document.getElementById('btn-wma').onclick = () => {
+                    emaSeries.setData([]);
+                    smaSeries.setData([]);
+                    vwapSeries.setData([]);
+                    bbUpperSeries.setData([]);
+                    bbLowerSeries.setData([]);
+                    wmaSeries.setData(wma20Data);
+                    priceChart.timeScale().fitContent();
+                };
+
+                document.getElementById('btn-vwap').onclick = () => {
+                    emaSeries.setData([]);
+                    smaSeries.setData([]);
+                    wmaSeries.setData([]);
+                    bbUpperSeries.setData([]);
+                    bbLowerSeries.setData([]);
+                    vwapSeries.setData(vwapData);
+                    priceChart.timeScale().fitContent();
+                };
+
+                document.getElementById('btn-bbands').onclick = () => {
+                    emaSeries.setData([]);
+                    smaSeries.setData([]);
+                    wmaSeries.setData([]);
+                    vwapSeries.setData([]);
+                    bbUpperSeries.setData(bbUpperData);
+                    bbLowerSeries.setData(bbLowerData);
+                    priceChart.timeScale().fitContent();
+                };
+
+                document.getElementById('btn-rsi').onclick = () => {
+                    showIndicators();
+                    stochSeries.setData([]);
+                    macdSeries.setData([]);
+                    macdSignalSeries.setData([]);
+                    adxSeries.setData([]);
+                    cciSeries.setData([]);
+                    rsiSeries.setData(rsiData);
+                    indChart.timeScale().fitContent();
+                };
+
+                document.getElementById('btn-stoch').onclick = () => {
+                    showIndicators();
+                    rsiSeries.setData([]);
+                    macdSeries.setData([]);
+                    macdSignalSeries.setData([]);
+                    adxSeries.setData([]);
+                    cciSeries.setData([]);
+                    stochSeries.setData(stochData);
+                    indChart.timeScale().fitContent();
+                };
+
+                document.getElementById('btn-macd').onclick = () => {
+                    showIndicators();
+                    rsiSeries.setData([]);
+                    stochSeries.setData([]);
+                    adxSeries.setData([]);
+                    cciSeries.setData([]);
+                    macdSeries.setData(macdData);
+                    macdSignalSeries.setData(macdSignalData);
+                    indChart.timeScale().fitContent();
+                };
+
+                document.getElementById('btn-adxcci').onclick = () => {
+                    showIndicators();
+                    rsiSeries.setData([]);
+                    stochSeries.setData([]);
+                    macdSeries.setData([]);
+                    macdSignalSeries.setData([]);
+                    adxSeries.setData(adxData);
+                    cciSeries.setData(cciData);
+                    indChart.timeScale().fitContent();
+                };
+
+                document.getElementById('btn-none').onclick = () => {
+                    [emaSeries, smaSeries, wmaSeries, vwapSeries, bbUpperSeries, bbLowerSeries,
+                        rsiSeries, stochSeries, macdSeries, macdSignalSeries, adxSeries, cciSeries]
+                        .forEach(s => s.setData([]));
+                };
+
+                window.addEventListener('resize', () => {
+                    priceChart.applyOptions({width: priceContainer.clientWidth});
+                    indChart.applyOptions({width: indContainer.clientWidth});
+                });
+            })();
+        </script>
+    {% endif %}
+
+    {% if table %}
+        <h4 class="text-light mt-4">
+            Results for {{ selected_symbol }} ({{ timeframe }})
+        </h4>
+
+        <div class="table-responsive mt-3">
+            <div class="ta-table-wrapper">
+                {{ table|safe }}
+            </div>
+        </div>
+    {% endif %}
+{% endblock %}
