@@ -15,4 +15,4 @@ with open(RAR_PATH, "wb") as f:
     f.write(resp.content)
 
 print(f"Saved RAR to: {RAR_PATH.resolve()}")
-print("➡ Now unzip this RAR manually. In the next script we will load the CSV and drop sentiment columns.")
+print("Now unzip this RAR manually. In the next script we will load the CSV and drop sentiment columns.")

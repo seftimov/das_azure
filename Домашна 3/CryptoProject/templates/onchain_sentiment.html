@@ -4,121 +4,298 @@
 {% block title %}On-chain & Sentiment{% endblock %}
 
 {% block content %}
-    <style>
-        .custom-dark-table {
-            background-color: #1c2129 !important;
-            color: #dde1e9;
-            border-collapse: collapse;
-            width: 100%;
-            border-radius: 10px;
-            overflow: hidden;
-        }
 
-        .custom-dark-table th,
-        .custom-dark-table td {
-            background-color: #1c2129 !important;
-            color: #dde1e9;
-            border-color: #2b3443;
-            padding: 10px;
-            vertical-align: middle;
-            text-align: center;
-        }
+<style>
+.ta-table-wrapper table {
+    background-color: #1c2129 !important;
+    color: #dde1e9;
+    border-collapse: collapse;
+    width: 100%;
+    border-radius: 10px;
+    overflow: hidden;
+    font-size: 0.95rem;
+}
 
-        .custom-dark-table thead th {
-            background-color: #232833 !important;
-            color: #97b8f5;
-            border-bottom: 2px solid #2b3443;
-        }
+.ta-table-wrapper th,
+.ta-table-wrapper td {
+    background-color: #1c2129 !important;
+    color: #dde1e9;
+    border-color: #2b3443;
+    padding: 10px;
+    text-align: center;
+    vertical-align: middle;
+}
 
-        .custom-dark-table tbody tr:hover {
-            background-color: #2b3443 !important;
-            transition: background-color 0.2s ease-in-out;
-        }
+.ta-table-wrapper thead th {
+    background-color: #232833 !important;
+    color: #97b8f5;
+    border-bottom: 2px solid #2b3443;
+}
 
-        .form-control,
-        .form-select {
-            background-color: #fff;
-            color: #000;
-        }
+.ta-table-wrapper tbody tr:hover {
+    background-color: #2b3443 !important;
+    transition: background-color 0.2s ease-in-out;
+}
 
-        .bg-dark .form-control,
-        .bg-dark .form-select {
-            background-color: #ffffff;
-            color: #000000;
-        }
-    </style>
+.table-responsive {
+    overflow-x: auto;
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+}
 
-    <h2 class="mb-3 text-light">On-chain & Sentiment Data</h2>
+.table-responsive::-webkit-scrollbar {
+    display: none;
+}
 
-    <form method="post" class="card p-3 bg-dark text-light">
-        {% csrf_token %}
+.tradingview-news-clone .news-scroll {
+    overflow-y: auto;
+}
 
-        <div class="row g-3">
-            <div class="col-md-3">
-                <label class="form-label">Coin</label>
-                {{ form.symbol|add_class:"form-select mb-3" }}
-            </div>
+.tradingview-news-clone .news-scroll::-webkit-scrollbar {
+    width: 4px;
+}
 
-            <div class="col-md-3">
-                <label class="form-label">Start date</label>
-                {{ form.start_date|add_class:"form-control mb-3" }}
-            </div>
+.tradingview-news-clone .news-scroll::-webkit-scrollbar-track {
+    background: transparent;
+}
 
-            <div class="col-md-3">
-                <label class="form-label">End date</label>
-                {{ form.end_date|add_class:"form-control mb-3" }}
-            </div>
+.tradingview-news-clone .news-scroll::-webkit-scrollbar-thumb {
+    background: rgba(137, 145, 158, 0.3);
+    border-radius: 2px;
+}
 
-            <div class="col-md-2 d-flex align-items-end">
-                <div class="form-check">
-                    {{ form.only_with_news }}
-                    <label class="form-check-label" for="{{ form.only_with_news.id_for_label }}">
-                        {{ form.only_with_news.label }}
-                    </label>
-                </div>
-            </div>
+.tradingview-news-clone .news-scroll::-webkit-scrollbar-thumb:hover {
+    background: rgba(137, 145, 158, 0.5);
+}
 
-            <div class="col-md-1 d-flex align-items-end">
-                <button type="submit" class="btn btn-primary w-100">
-                    Filter
-                </button>
+.form-control,
+.form-select {
+    background-color: #fff;
+    color: #000;
+}
+
+.bg-dark .form-control,
+.bg-dark .form-select {
+    background-color: #fff;
+    color: #000;
+}
+</style>
+
+<h2 class="mb-3 text-light">On-chain & Sentiment Data</h2>
+
+<form method="POST" class="card p-3 bg-dark text-light mb-3">
+    {% csrf_token %}
+    <div class="row g-3">
+
+        <div class="col-md-3">
+            <label class="form-label">Coin</label>
+            {{ form.symbol|add_class:"form-select mb-3" }}
+        </div>
+
+        <div class="col-md-3">
+            <label class="form-label">Start date</label>
+            {{ form.start_date|add_class:"form-control mb-3" }}
+        </div>
+
+        <div class="col-md-3">
+            <label class="form-label">End date</label>
+            {{ form.end_date|add_class:"form-control mb-3" }}
+        </div>
+
+        <div class="col-md-2 d-flex align-items-end">
+            <div class="form-check">
+                {{ form.only_with_news }}
+                <label class="form-check-label"
+                       for="{{ form.only_with_news.id_for_label }}">
+                    {{ form.only_with_news.label }}
+                </label>
             </div>
         </div>
-    </form>
 
-    <hr class="border-secondary">
+        <div class="col-md-1 d-flex align-items-end">
+            <button type="submit" class="btn btn-primary w-100">
+                Filter
+            </button>
+        </div>
 
-    {% if selected_symbol %}
-        <p class="text-light">
-            Showing data for: <strong>{{ selected_symbol }}</strong>
-        </p>
-    {% endif %}
+    </div>
+</form>
 
-    {% if rows %}
-        <div class="table-responsive">
-            <table class="table custom-dark-table mt-3">
-                <thead>
+<hr class="border-secondary">
+
+{% if selected_symbol %}
+<p class="text-light">
+    Showing data for: <strong>{{ selected_symbol }}</strong>
+</p>
+{% endif %}
+
+{% if rows %}
+<h4 class="text-light mt-4">
+    Results for {{ selected_symbol }}
+</h4>
+
+<div class="table-responsive mt-3">
+    <div class="ta-table-wrapper">
+        <table class="table">
+            <thead>
                 <tr>
                     {% for col in columns %}
                         <th>{{ col }}</th>
                     {% endfor %}
                 </tr>
-                </thead>
-                <tbody>
+            </thead>
+
+            <tbody>
                 {% for row in rows %}
-                    <tr>
-                        {% for col in columns %}
-                            <td>{{ row|get_item:col }}</td>
-                        {% endfor %}
-                    </tr>
+                <tr>
+                    {% for col in columns %}
+                        <td>{{ row|get_item:col }}</td>
+                    {% endfor %}
+                </tr>
                 {% endfor %}
-                </tbody>
-            </table>
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<h4 class="text-light mt-4">
+    {{ selected_symbol }} – Latest News
+</h4>
+
+<div class="tradingview-news-clone mb-3"
+     style="
+        width: 100%;
+        height: 400px;
+        background: #1c2129;
+        border-radius: 12px;
+        overflow: hidden;
+        border: 1px solid #2b3443;
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+     ">
+
+    <div class="news-header"
+         style="
+            height: 52px;
+            background: linear-gradient(90deg, #232833 0%, #1c2129 100%);
+            padding: 0 16px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            border-bottom: 1px solid #2b3443;
+         ">
+        <span style="
+            font-size: 15px;
+            font-weight: 600;
+            color: #dde1e9;
+            letter-spacing: 0.5px;
+        ">
+            Top Stories
+        </span>
+
+        <svg width="18" height="18" viewBox="0 0 24 24"
+             fill="#97b8f5" style="opacity: 0.7;">
+            <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10
+                     10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5
+                     1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/>
+        </svg>
+    </div>
+
+    <div class="news-scroll"
+         style="
+            height: 348px;
+            padding: 12px 8px;
+            background: #1c2129;
+         ">
+        <div class="news-list">
+
+            {% for news in news_items %}
+            <a href="{{ news.url }}"
+               target="_blank"
+               rel="noopener noreferrer"
+               style="
+                    padding: 12px 0;
+                    border-bottom: 1px solid rgba(43,52,67,0.5);
+                    display: flex;
+                    gap: 8px;
+                    text-decoration: none;
+                    color: inherit;
+               "
+               onmouseover="this.style.background='rgba(43,52,67,0.4)'"
+               onmouseout="this.style.background='transparent'">
+
+                <div style="
+                    min-width: 70px;
+                    font-size: 11px;
+                    color: #8a919e;
+                    font-weight: 500;
+                ">
+                    {{ news.date }}
+                </div>
+
+                <div style="flex: 1; min-width: 0;">
+                    <div style="
+                        display: inline-block;
+                        background: rgba(43,52,67,0.6);
+                        color: #b1b7c4;
+                        padding: 2px 6px;
+                        border-radius: 4px;
+                        font-size: 10px;
+                        margin-bottom: 4px;
+                    ">
+                        {{ news.symbol }}
+                    </div>
+
+                    <div style="
+                        font-size: 13px;
+                        font-weight: 600;
+                        color: #dde1e9;
+                        white-space: nowrap;
+                        overflow: hidden;
+                        text-overflow: ellipsis;
+                        margin-bottom: 4px;
+                    ">
+                        {{ news.title }}
+                    </div>
+
+                    <div style="font-size: 12px; color: #8a919e;">
+                        {{ news.text|truncatechars:100 }}
+
+                        {% if news.vader_score %}
+                        <span style="
+                            margin-left: 8px;
+                            padding: 2px 6px;
+                            border-radius: 4px;
+                            font-size: 10px;
+                            {% if news.vader_score > 0.05 %}
+                                background: rgba(34,197,94,0.2);
+                                color: #10b981;
+                            {% elif news.vader_score < -0.05 %}
+                                background: rgba(239,68,68,0.2);
+                                color: #ef4444;
+                            {% else %}
+                                background: rgba(43,52,67,0.5);
+                                color: #9ca3af;
+                            {% endif %}
+                        ">
+                            {{ news.vader_score|floatformat:3 }}
+                        </span>
+                        {% endif %}
+                    </div>
+                </div>
+            </a>
+
+            {% empty %}
+            <div style="text-align: center; color: #8a919e; padding: 40px;">
+                No news available for {{ selected_symbol }}
+            </div>
+            {% endfor %}
+
         </div>
-    {% elif rows is not None %}
-        <div class="alert alert-secondary mt-3">
-            No data for this filter.
-        </div>
-    {% endif %}
+    </div>
+</div>
+
+{% elif rows is not None %}
+<div class="alert alert-danger mt-3">{{ error }}</div>
+{% endif %}
 
 {% endblock %}

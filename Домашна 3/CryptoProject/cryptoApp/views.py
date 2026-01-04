@@ -1,11 +1,10 @@
 import json
 import pandas as pd
 from datetime import date
-from pathlib import Path
 from django.contrib.auth.models import User
 from django.shortcuts import render, redirect, get_object_or_404
 from .forms import SignupUserForm, CoinFilterForm, OnchainSentimentForm
-from .models import Coins, OhlcvData
+from .models import Coins, OhlcvData, News, OnchainMetrics
 from django.contrib.auth import authenticate, login, logout
 from django.contrib import messages
 from .technical_analysis import calculate_indicators
@@ -104,7 +103,7 @@ def coin_detail(request, symbol):
     symbol_obj = get_object_or_404(Coins, symbol=symbol)
     selected_currency = 'USD'
 
-    # base queryset
+    # Base queryset
     ohlcv_data = OhlcvData.objects.filter(symbol=symbol_obj.symbol)
 
     if request.method == 'POST':
@@ -440,74 +439,134 @@ def lstm_page(request):
     return render(request, "lstm.html", context)
 
 
-def onchain_sentiment_page(request):
-    csv_path = Path(__file__).resolve().parent / "data" / "onchain_with_sentiment.csv"
+REQUIRED_COLUMNS = [
+    "time",
+    "date",
+    "adractcnt",
+    "txcnt",
+    "txtfrcnt",
+    "flowinexusd",
+    "flowoutexusd",
+    "hashrate",
+    "capmrktcurusd",
+    "nvt_ratio",
+    "capmvrvcur",
+    "sentiment_score",
+    "sentiment_label",
+]
 
-    df = pd.read_csv(csv_path)
-    df["time"] = pd.to_datetime(df["time"])
-    df["symbol"] = df["symbol"].str.upper()
 
-    # Sentiment label
-    if "sentiment_score" in df.columns:
-        def label_sentiment(x):
-            if pd.isna(x):
-                return "no news"
-            if x > 0.05:
-                return "positive"
-            if x < -0.05:
-                return "negative"
-            return "neutral"
+def label_sentiment(x):
+    if pd.isna(x):
+        return "no news"
+    if x > 0.05:
+        return "positive"
+    if x < -0.05:
+        return "negative"
+    return "neutral"
 
-        df["sentiment_label"] = df["sentiment_score"].apply(label_sentiment)
 
-    db_symbols = list(
-        Coins.objects.order_by("market_cap_rank")
-        .values_list("symbol", flat=True)
+def get_news_items(symbol: str | None):
+    if not symbol:
+        return []
+
+    qs = (
+        News.objects.filter(symbol__iexact=symbol)
+        .order_by("-news_datetime")
     )
-    db_symbols_upper = [s.upper() for s in db_symbols]
-    csv_symbols = set(df["symbol"].dropna().unique())
-    symbols_ordered = [s for s in db_symbols_upper if s in csv_symbols]
-    symbol_choices = [(s, s) for s in symbols_ordered]
 
-    filtered_df = df.copy()
-    selected_symbol = None
+    items = []
+    now = pd.Timestamp.utcnow()
+
+    for n in qs:
+        dt = n.news_datetime
+        if dt:
+            news_date = (
+                dt.strftime("%b %d") if dt.year == now.year else dt.strftime("%b %d, %Y")
+            )
+        else:
+            news_date = "Recent"
+
+        # Pick best available text
+        final_text = next(
+            (v.strip() for v in (n.description, n.text, n.title) if v and v.strip()),
+            "No description available",
+        )
+
+        score = float(n.vader_score) if n.vader_score is not None else None
+
+        items.append({
+            "title": str(n.title or "No title")[:100].strip(),
+            "text": final_text[:120],
+            "date": news_date,
+            "symbol": symbol.upper(),
+            "vader_score": score,
+            "url": n.url or None,
+        })
+
+    return items
+
+
+def onchain_sentiment_page(request):
+    db_symbols = Coins.objects.order_by("market_cap_rank").values_list("symbol", flat=True)
+    symbols = [s.upper() for s in db_symbols if s]  # skip nulls
+    symbol_choices = [(s, s) for s in symbols]
+
     rows = None
-    columns = list(df.columns)
+    selected_symbol = None
+    news_items = []
 
-    if request.method == "POST":
-        form = OnchainSentimentForm(request.POST)
-        form.fields["symbol"].choices = symbol_choices
+    form = OnchainSentimentForm(request.POST or None)
+    form.fields["symbol"].choices = symbol_choices
 
-        if form.is_valid():
-            selected_symbol = form.cleaned_data["symbol"]
-            start_date = form.cleaned_data.get("start_date")
-            end_date = form.cleaned_data.get("end_date")
-            only_with_news = form.cleaned_data.get("only_with_news")
+    if request.method == "POST" and form.is_valid():
+        selected_symbol = form.cleaned_data["symbol"]
+        start_date = form.cleaned_data.get("start_date")
+        end_date = form.cleaned_data.get("end_date")
+        only_with_news = form.cleaned_data.get("only_with_news")
 
-            filtered_df = filtered_df[filtered_df["symbol"] == selected_symbol]
+        qs = OnchainMetrics.objects.filter(symbol__iexact=selected_symbol)
 
-            if start_date:
-                filtered_df = filtered_df[filtered_df["time"] >= pd.to_datetime(start_date)]
-            if end_date:
-                filtered_df = filtered_df[filtered_df["time"] <= pd.to_datetime(end_date)]
+        if start_date:
+            qs = qs.filter(time__date__gte=start_date)
+        if end_date:
+            qs = qs.filter(time__date__lte=end_date)
+        if only_with_news:
+            qs = qs.filter(sentiment_score__isnull=False)
 
-            if only_with_news and "sentiment_score" in filtered_df.columns:
-                filtered_df = filtered_df[filtered_df["sentiment_score"].notnull()]
+        qs = qs.order_by("time")
 
-            if not filtered_df.empty:
-                filtered_df = filtered_df.sort_values("time", ascending=True)
-                rows = filtered_df.to_dict(orient="records")
-                columns = list(filtered_df.columns)
-            else:
-                rows = []
-    else:
-        form = OnchainSentimentForm()
-        form.fields["symbol"].choices = symbol_choices
+        # Convert queryset to list of dicts
+        rows = []
+        for row in qs:
+            row_dict = {
+                "time": row.time,
+                "date": row.date,
+                "adractcnt": row.adractcnt,
+                "txcnt": row.txcnt,
+                "txtfrcnt": row.txtfrcnt,
+                "flowinexusd": row.flowinexusd,
+                "flowoutexusd": row.flowoutexusd,
+                "hashrate": row.hashrate,
+                "capmrktcurusd": row.capmrktcurusd,
+                "nvt_ratio": row.nvt_ratio,
+                "capmvrvcur": row.capmvrvcur,
+                "sentiment_score": row.sentiment_score,
+            }
+            # Add sentiment_label
+            row_dict["sentiment_label"] = label_sentiment(row.sentiment_score)
+            rows.append(row_dict)
 
-    context = {
-        "form": form,
-        "columns": columns,
-        "rows": rows,
-        "selected_symbol": selected_symbol,
-    }
-    return render(request, "onchain_sentiment.html", context)
+        news_items = get_news_items(selected_symbol)
+
+    return render(
+        request,
+        "onchain_sentiment.html",
+        {
+            "form": form,
+            "columns": REQUIRED_COLUMNS,
+            "rows": rows,
+            "selected_symbol": selected_symbol,
+            "news_items": news_items,
+        },
+    )

@@ -5,7 +5,6 @@ import numpy as np
 from pathlib import Path
 from tqdm import tqdm
 
-# === DATABASE CONFIG ===
 DB_HOST = "localhost"
 DB_PORT = 3306
 DB_USER = "root"
@@ -18,9 +17,7 @@ PROCESSED_DIR = Path("coinmetrics_processed")
 PROCESSED_DIR.mkdir(exist_ok=True)
 
 
-# === DATABASE FUNCTIONS ===
 def load_coins_from_db():
-    """Load top coins from your MySQL database"""
     try:
         conn = mysql.connector.connect(
             host=DB_HOST, user=DB_USER, password=DB_PASS, database=DB_NAME
@@ -42,8 +39,6 @@ def load_coins_from_db():
 
 
 def compute_nvt_ratio(df):
-    """Compute NVT Ratio = CapMrktCurUSD / volume_reported_spot_usd_1d"""
-    # Safe computation (avoid division by zero)
     market_cap = df.get('CapMrktCurUSD', pd.Series([np.nan] * len(df)))
     tx_volume = df.get('volume_reported_spot_usd_1d', pd.Series([np.nan] * len(df)))
 
@@ -57,7 +52,6 @@ def compute_nvt_ratio(df):
     return df
 
 
-# === MAIN DOWNLOAD + PROCESS ===
 print("Loading coins from MySQL database...")
 coins_df = load_coins_from_db()
 
@@ -78,13 +72,11 @@ for symbol, coin_id in tqdm(zip(coin_symbols, coin_ids), total=len(coin_symbols)
     raw_path = DOWNLOAD_DIR / f"{symbol}.csv"
     processed_path = PROCESSED_DIR / f"{symbol}_nvt.csv"
 
-    # Skip if processed file already exists
     if processed_path.exists():
         successful_processed += 1
         results.append({'symbol': symbol, 'coin_id': coin_id, 'status': 'processed'})
         continue
 
-    # Download if needed
     if not raw_path.exists():
         try:
             response = requests.get(csv_url, timeout=10)
@@ -100,17 +92,14 @@ for symbol, coin_id in tqdm(zip(coin_symbols, coin_ids), total=len(coin_symbols)
             results.append({'symbol': symbol, 'coin_id': coin_id, 'status': 'error'})
             continue
 
-    # Process: Add NVT Ratio column
     try:
         df_raw = pd.read_csv(raw_path)
         if len(df_raw) == 0:
             results.append({'symbol': symbol, 'coin_id': coin_id, 'status': 'empty'})
             continue
 
-        # COMPUTE NVT RATIO
         df_processed = compute_nvt_ratio(df_raw)
 
-        # Save processed file with NVT column
         df_processed.to_csv(processed_path, index=False)
         successful_processed += 1
         results.append({'symbol': symbol, 'coin_id': coin_id, 'status': 'processed'})
@@ -118,7 +107,6 @@ for symbol, coin_id in tqdm(zip(coin_symbols, coin_ids), total=len(coin_symbols)
     except Exception as e:
         results.append({'symbol': symbol, 'coin_id': coin_id, 'status': f'error: {str(e)[:30]}'})
 
-# Save results
 results_df = pd.DataFrame(results)
 results_df.to_csv(DOWNLOAD_DIR / "download_summary.csv", index=False)
 

@@ -5,13 +5,11 @@ import mysql.connector
 NEWS_DIR = Path("cryptonews_raw")
 NEWS_DIR.mkdir(exist_ok=True)
 
-# === 1) Load joined CSV ===
-CSV_PATH = NEWS_DIR / "news_currencies_source_joinedResult.csv"  # adjust name if needed
+CSV_PATH = NEWS_DIR / "news_currencies_source_joinedResult.csv"
 df = pd.read_csv(CSV_PATH)
 print("Original columns:", df.columns.tolist())
 print("Rows:", len(df))
 
-# === 2) Drop CryptoPanic sentiment/vote columns ===
 sentiment_cols = [
     "negative",
     "positive",
@@ -31,8 +29,7 @@ df_clean.to_csv(OUT_CLEAN, index=False)
 print("\nClean NLP input saved to:", OUT_CLEAN.resolve())
 print("Kept columns:", df_clean.columns.tolist())
 
-# === 3) Expand `currencies` into one row per (news, coin) ===
-print("\nExpanding currencies → one row per (news, coin)...")
+print("\nExpanding currencies -> one row per (news, coin)...")
 rows = []
 for _, row in df_clean.iterrows():
     cur = str(row.get("currencies", ""))
@@ -53,7 +50,6 @@ print(f"Expanded rows: {len(expanded)}")
 print(f"Coins covered in news: {expanded['symbol'].nunique()}")
 print("Saved expanded file to:", EXPANDED_PATH.resolve())
 
-# === 4) Load ALL coins from DB (no rank filter) ===
 print("\nLoading target coins from MySQL (all symbols)...")
 conn = mysql.connector.connect(
     host="localhost",
@@ -67,7 +63,6 @@ conn.close()
 target = set(coins_df["symbol"].str.upper())
 print(f"Target coins from DB (unique symbols): {len(target)}")
 
-# === 5) Filter expanded news to your coins ===
 expanded = pd.read_csv(EXPANDED_PATH)
 expanded_filtered = expanded[expanded["symbol"].isin(target)].copy()
 
