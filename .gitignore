@@ -1,7 +1,25 @@
-# Ignore IDE files
-*.iml
+# IDE files
 .idea/
+*.iml
 
-# Ignore Python cache
+# Python cache
 __pycache__/
 *.py[cod]
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+
+# Jupyter
+.ipynb_checkpoints/
+
+# Environment variables
+.env
