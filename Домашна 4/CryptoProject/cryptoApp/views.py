@@ -1,14 +1,13 @@
 import json
 import pandas as pd
 from datetime import date
+import requests
 from django.contrib.auth.models import User
 from django.shortcuts import render, redirect, get_object_or_404
 from .forms import SignupUserForm, CoinFilterForm, OnchainSentimentForm
 from .models import Coins, OhlcvData, News, OnchainMetrics
 from django.contrib.auth import authenticate, login, logout
 from django.contrib import messages
-from .technical_analysis import calculate_indicators
-from .lstm import train_and_predict, forecast_future
 
 
 # Create your views here.
@@ -172,31 +171,29 @@ def coin_detail(request, symbol):
 #     return render(request, 'coin_detail.html', context)
 
 
+TECHNICAL_ANALYSIS_SERVICE_URL = "http://127.0.0.1:8001/api/technical-analysis/"  # Microservice URL
+
+
 def technical_analysis_page(request):
     symbols = Coins.objects.values_list("symbol", flat=True).order_by("market_cap_rank")
-
     context = {"symbols": symbols}
 
     if request.method == "POST":
         symbol = request.POST.get("symbol")
         timeframe = request.POST.get("timeframe")
 
+        # Fetch OHLCV data from DB
         ohlcv = OhlcvData.objects.filter(symbol=symbol).order_by("date")
-
         df = pd.DataFrame(list(ohlcv.values("date", "open", "high", "low", "close", "volume")))
 
         if df.empty:
             context["error"] = "No data found for this symbol."
             return render(request, "technical_analysis.html", context)
 
-        df["open"] = df["open"].astype(float)
-        df["high"] = df["high"].astype(float)
-        df["low"] = df["low"].astype(float)
-        df["close"] = df["close"].astype(float)
-        df["volume"] = df["volume"].astype(float)
+        df[["open", "high", "low", "close", "volume"]] = df[["open", "high", "low", "close", "volume"]].astype(float)
+        df["date"] = pd.to_datetime(df["date"])
 
-        df['date'] = pd.to_datetime(df['date'])
-
+        # Resample if needed
         if timeframe == "1week":
             df = df.resample("W", on="date").agg({
                 "open": "first",
@@ -205,7 +202,6 @@ def technical_analysis_page(request):
                 "close": "last",
                 "volume": "sum"
             }).reset_index()
-
         elif timeframe == "1month":
             df = df.resample("M", on="date").agg({
                 "open": "first",
@@ -215,27 +211,44 @@ def technical_analysis_page(request):
                 "volume": "sum"
             }).reset_index()
 
-        df = calculate_indicators(df)
+        # Send OHLCV to microservice for indicators
+        try:
+            df_to_send = df.copy()
+            df_to_send["date"] = df_to_send["date"].dt.strftime("%Y-%m-%d %H:%M:%S")
+            response = requests.post(
+                TECHNICAL_ANALYSIS_SERVICE_URL,
+                data=json.dumps({"ohlcv": df_to_send.to_dict(orient="records")}),
+                headers={"Content-Type": "application/json"},
+                timeout=10
+            )
+            response.raise_for_status()
+        except requests.RequestException:
+            context["error"] = "Technical analysis service unavailable."
+            return render(request, "technical_analysis.html", context)
 
-        df_complete = df.dropna(subset=[
-            "open", "high", "low", "close",
+        ta_json = response.json()
+        ta_data = ta_json.get("data", [])
+        if not ta_data:
+            context["error"] = "No indicator data returned from service."
+            return render(request, "technical_analysis.html", context)
+
+        df_ta = pd.DataFrame(ta_data)
+        df_ta["date"] = pd.to_datetime(df_ta["date"])
+
+        # Merge OHLCV + indicators without duplicates
+        df_complete = pd.merge(df, df_ta, on="date", how="inner")
+
+        # Drop rows with missing indicator data
+        df_complete = df_complete.dropna(subset=[
             "ema_20", "sma_20", "wma_20",
             "bb_upper", "bb_lower", "vwap",
             "rsi", "stoch", "macd", "macd_signal", "adx", "cci"
         ]).reset_index(drop=True)
 
-        if len(df_complete) < 5:
-            context.update({
-                "selected_symbol": symbol,
-                "timeframe": timeframe,
-                "table": df.tail(40).to_html(classes="table table-striped", index=False),
-                "error": f"Not enough {timeframe} data to plot indicators (need 5+, got {len(df_complete)}).",
-            })
-            return render(request, "technical_analysis.html", context)
-
+        # Calculate BUY/SELL/HOLD signals
         signals = []
         scores = []
-        for i, row in df_complete.iterrows():
+        for _, row in df_complete.iterrows():
             score = 0
             if row["rsi"] < 35:
                 score += 1
@@ -258,6 +271,7 @@ def technical_analysis_page(request):
         df_complete["score"] = scores
         df_complete["signal"] = signals
 
+        # Prepare chart data
         df_chart = df_complete.tail(300)
 
         candlestick_data = []
@@ -317,13 +331,14 @@ def technical_analysis_page(request):
             adx_data.append({"time": t, "value": row["adx"]})
             cci_data.append({"time": t, "value": row["cci"]})
 
+        # Update context for template
         context.update({
             "selected_symbol": symbol,
             "timeframe": timeframe,
             "table": df_complete[
-                ['date', 'rsi', 'macd', 'macd_signal', 'stoch', 'adx', 'cci', 'sma_20', 'ema_20', 'wma_20', 'bb_mid',
-                 'bb_upper', 'bb_lower', 'vwap', 'score', 'signal']].tail(40).to_html(classes="table table-striped",
-                                                                                      index=False),
+                ['date', 'rsi', 'macd', 'macd_signal', 'stoch', 'adx', 'cci',
+                 'sma_20', 'ema_20', 'wma_20', 'bb_mid', 'bb_upper', 'bb_lower',
+                 'vwap', 'score', 'signal']].tail(40).to_html(classes="table table-striped", index=False),
             "candlestick_data": json.dumps(candlestick_data),
             "markers_data": json.dumps(markers_data),
             "ema20_data": json.dumps(ema20_data),
@@ -343,6 +358,9 @@ def technical_analysis_page(request):
     return render(request, "technical_analysis.html", context)
 
 
+LSTM_PREDICTION_SERVICE_URL = "http://127.0.0.1:8002/api/lstm/"
+
+
 def lstm_page(request):
     symbols = Coins.objects.values_list("symbol", flat=True).order_by("market_cap_rank")
     context = {"symbols": symbols}
@@ -354,19 +372,24 @@ def lstm_page(request):
         horizon = int(request.POST.get("horizon", 7))
         granularity = request.POST.get("granularity", "daily")
 
+        # Fetch OHLCV data from database
         ohlcv = OhlcvData.objects.filter(symbol=symbol).order_by("date")
-        df = pd.DataFrame(list(ohlcv.values("date", "open", "high", "low", "close", "volume")))
+        df = pd.DataFrame(list(ohlcv.values(
+            "date", "open", "high", "low", "close", "volume"
+        )))
 
+        # Ensure enough data for LSTM training
         if df.empty or len(df) < (lookback + 20):
-            context["error"] = "Not enough data for LSTM."
+            context["error"] = "Not enough data for LSTM prediction."
             return render(request, "lstm.html", context)
 
+        # Data cleaning & type casting
+        df["date"] = pd.to_datetime(df["date"])
         df[["open", "high", "low", "close", "volume"]] = df[
             ["open", "high", "low", "close", "volume"]
         ].astype(float)
-        df["date"] = pd.to_datetime(df["date"])
 
-        # RESAMPLING
+        # Resample data if needed
         if granularity == "weekly":
             df = df.resample("W", on="date").agg({
                 "open": "first",
@@ -375,7 +398,7 @@ def lstm_page(request):
                 "close": "last",
                 "volume": "sum"
             }).reset_index()
-            freq = "W"
+
         elif granularity == "monthly":
             df = df.resample("M", on="date").agg({
                 "open": "first",
@@ -384,52 +407,65 @@ def lstm_page(request):
                 "close": "last",
                 "volume": "sum"
             }).reset_index()
-            freq = "M"
-        else:
-            freq = "D"
 
-        results = train_and_predict(df, lookback=lookback, epochs=epochs)
-        model = results["model"]
-        scaler = results["scaler"]
+        # Convert dates to JSON-safe format
+        df["date"] = df["date"].dt.strftime("%Y-%m-%d")
 
-        future_dates, future_preds = forecast_future(
-            model, df, scaler, lookback, horizon, freq=freq
-        )
+        # Call LSTM prediction microservice
+        payload = {
+            "ohlcv": df.to_dict(orient="records"),
+            "lookback": lookback,
+            "epochs": epochs,
+            "horizon": horizon
+        }
 
-        test_dates = results["test_dates"]
-        y_test = results["y_test"]
-        y_pred = results["y_pred"]
-        metrics = results["metrics"]
+        try:
+            response = requests.post(
+                LSTM_PREDICTION_SERVICE_URL,
+                json=payload,
+                timeout=300
+            )
+            response.raise_for_status()
+            result = response.json()
 
+        except requests.RequestException as e:
+            context["error"] = f"LSTM prediction service unavailable: {e}"
+            return render(request, "lstm.html", context)
+
+        # Build chart-ready time series
         chart_data = []
 
-        # Historical predicted vs actual
-        for date, actual, pred in zip(test_dates, y_test, y_pred):
+        # Historical predictions vs actual values
+        for d, a, p in zip(
+                result["test_dates"],
+                result["y_test"],
+                result["y_pred"]
+        ):
             chart_data.append({
-                "time": date if isinstance(date, str) else date.strftime("%Y-%m-%d"),
-                "actual": float(actual),
-                "predicted": float(pred)
+                "time": d,
+                "actual": float(a),
+                "predicted": float(p)
             })
 
-        # Future predictions
-        for date, pred in zip(future_dates, future_preds):
+        # Future forecasted values
+        for d, p in zip(
+                result["future_dates"],
+                result["future_preds"]
+        ):
             chart_data.append({
-                "time": date if isinstance(date, str) else date.strftime("%Y-%m-%d"),
+                "time": d,
                 "actual": None,
-                "predicted": float(pred)
+                "predicted": float(p)
             })
 
         context.update({
             "selected_symbol": symbol,
-            "metrics": metrics,
+            "metrics": result["metrics"],
             "chart_data": json.dumps(chart_data),
-            "future_rows": [
-                (
-                    d if isinstance(d, str) else d.strftime("%Y-%m-%d"),
-                    float(p)
-                )
-                for d, p in zip(future_dates, future_preds)
-            ],
+            "future_rows": list(zip(
+                result["future_dates"],
+                result["future_preds"]
+            )),
             "lookback": lookback,
             "epochs": epochs,
             "horizon": horizon,

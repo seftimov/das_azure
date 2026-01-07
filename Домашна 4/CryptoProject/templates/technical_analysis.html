@@ -48,6 +48,7 @@
 
     <h2 class="mb-3 text-light">Technical Analysis</h2>
 
+    <!-- FILTER FORM -->
     <form method="POST" class="card p-3 bg-dark text-light mb-3">
         {% csrf_token %}
 
@@ -78,10 +79,12 @@
 
     {% if candlestick_data %}
 
+        <!-- SIGNALS CHART -->
         <h4 class="text-light mt-4">
             {{ selected_symbol }} – Signals Chart ({{ timeframe }})
         </h4>
 
+        <!-- INDICATOR CONTROLS -->
         <div class="mb-2 d-flex flex-wrap gap-2">
             <button type="button" class="btn btn-sm btn-secondary" id="btn-ema">EMA20</button>
             <button type="button" class="btn btn-sm btn-secondary" id="btn-sma">SMA20</button>
@@ -95,12 +98,14 @@
             <button type="button" class="btn btn-sm btn-secondary" id="btn-none">Clear all</button>
         </div>
 
+        <!-- CHART CONTAINERS -->
         <div class="mt-2">
             <div id="ta-chart" style="width: 100%; height: 400px;"></div>
             <div id="indicators-chart"
                  style="width: 100%; height: 250px; margin-top: 10px; display: none;"></div>
         </div>
 
+        <!-- CHART SCRIPT -->
         <script src="https://unpkg.com/lightweight-charts@4.2.0/dist/lightweight-charts.standalone.production.js"></script>
         <script>
             (function () {
@@ -289,9 +294,12 @@
                 });
             })();
         </script>
+
     {% endif %}
 
     {% if table %}
+
+        <!-- RESULTS TABLE -->
         <h4 class="text-light mt-4">
             Results for {{ selected_symbol }} ({{ timeframe }})
         </h4>
@@ -301,5 +309,7 @@
                 {{ table|safe }}
             </div>
         </div>
+
     {% endif %}
+
 {% endblock %}

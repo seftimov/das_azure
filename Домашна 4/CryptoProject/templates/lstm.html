@@ -89,6 +89,24 @@
         <div class="alert alert-danger mt-3">{{ error }}</div>
     {% endif %}
 
+    <!-- TRAINING PROGRESS BAR -->
+    <div id="training-bar" class="progress mb-3 d-none">
+        <div class="progress-bar progress-bar-striped progress-bar-animated"
+             role="progressbar"
+             style="width: 100%">
+            Training model…
+        </div>
+    </div>
+
+    <script>
+        const form = document.querySelector("form");
+        const bar = document.getElementById("training-bar");
+
+        form.addEventListener("submit", () => {
+            bar.classList.remove("d-none");
+        });
+    </script>
+
     {% if chart_data %}
 
         <h4 class="text-light mt-4">{{ selected_symbol }} – Forecast Chart</h4>
