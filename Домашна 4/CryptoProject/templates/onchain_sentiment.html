@@ -82,6 +82,14 @@
 
     <h2 class="mb-3 text-light">On-chain & Sentiment Data</h2>
 
+    <!-- TRIGGER MICROSERVICE FORM -->
+    <form method="post" action="{% url 'trigger_onchain_sentiment_pipeline' %}">
+        {% csrf_token %}
+        <button class="btn btn-warning mb-3">
+            Refresh On-chain & Sentiment Data
+        </button>
+    </form>
+
     <!-- FILTER FORM -->
     <form method="POST" class="card p-3 bg-dark text-light mb-3">
         {% csrf_token %}

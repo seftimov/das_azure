@@ -606,3 +606,25 @@ def onchain_sentiment_page(request):
             "news_items": news_items,
         },
     )
+
+
+ONCHAIN_SENTIMENT_SERVICE_URL = "http://localhost:8003/api/onchain-sentiment/"
+
+
+def trigger_onchain_sentiment_pipeline(request):
+    try:
+        requests.post(
+            ONCHAIN_SENTIMENT_SERVICE_URL,
+            timeout=2
+        )
+        messages.success(
+            request,
+            "On-chain and Sentiment pipeline started in background"
+        )
+    except Exception:
+        messages.error(
+            request,
+            "Failed to start On-chain and Sentiment pipeline"
+        )
+
+    return redirect("onchain_sentiment_page")

@@ -5,6 +5,8 @@ from django.views.decorators.csrf import csrf_exempt
 from .services import calculate_indicators
 
 
+# Create your views here.
+
 @csrf_exempt
 def technical_analysis_api(request):
     if request.method != "POST":
