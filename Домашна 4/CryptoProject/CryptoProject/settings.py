@@ -91,10 +91,10 @@ WSGI_APPLICATION = 'CryptoProject.wsgi.application'
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.mysql',
-        'NAME': 'crypto_data',
-        'USER': 'root',
+        'NAME': 'crypto_db',
+        'USER': 'dbadmin',
         'PASSWORD': 'Test123!',
-        'HOST': 'localhost',
+        'HOST': 'das-hw-db-2026.mysql.database.azure.com',
         'PORT': '3306',
     }
 }
