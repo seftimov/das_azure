@@ -1,6 +1,7 @@
-# deployment.py
-from .settings import *
 import os
+from .settings import *
+from pathlib import Path  
+from .settings import BASE_DIR
 
 DEBUG = False
 SECRET_KEY = os.environ['SECRET_KEY']
@@ -12,6 +13,12 @@ MIDDLEWARE = ['django.middleware.security.SecurityMiddleware',
               'whitenoise.middleware.WhiteNoiseMiddleware'] + MIDDLEWARE
 STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
 STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
+
+# ADD STATICFILES_DIRS (for collectstatic to find your CSS/JS)
+STATICFILES_DIRS = [
+    BASE_DIR / 'cryptoApp' / 'static',  # Your app static folder
+    BASE_DIR / 'static',               # Global static (if exists)
+]
 
 # MySQL connection
 DATABASES = {
