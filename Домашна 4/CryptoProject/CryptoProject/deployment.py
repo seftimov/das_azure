@@ -1,6 +1,5 @@
 import os
 from .settings import *
-from pathlib import Path  
 from .settings import BASE_DIR
 
 DEBUG = False
@@ -9,16 +8,12 @@ ALLOWED_HOSTS = [os.environ['WEBSITE_HOSTNAME']]
 CSRF_TRUSTED_ORIGINS = ['https://' + os.environ['WEBSITE_HOSTNAME']]
 
 # WhiteNoise
-MIDDLEWARE = ['django.middleware.security.SecurityMiddleware',
-              'whitenoise.middleware.WhiteNoiseMiddleware'] + MIDDLEWARE
+MIDDLEWARE.insert(
+    MIDDLEWARE.index('django.middleware.security.SecurityMiddleware') + 1,
+    'whitenoise.middleware.WhiteNoiseMiddleware'
+)
 STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
 STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
-
-# ADD STATICFILES_DIRS (for collectstatic to find your CSS/JS)
-STATICFILES_DIRS = [
-    BASE_DIR / 'cryptoApp' / 'static',  # Your app static folder
-    BASE_DIR / 'static',               # Global static (if exists)
-]
 
 # MySQL connection
 DATABASES = {
